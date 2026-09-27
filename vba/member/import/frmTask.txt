@@ -1,0 +1,359 @@
+﻿'==============================================================
+' frmTask : Task 등록 / 수정 입력폼
+'  [설치] VBA 편집기 → 삽입 → 사용자 정의 폼 → 속성창 (이름) = frmTask
+'         폼을 더블클릭해 나오는 코드 창에 이 파일 내용을 전부 붙여넣기
+'  컨트롤은 코드가 자동으로 만들므로 폼에 아무것도 그리지 않아도 됩니다.
+'==============================================================
+Option Explicit
+
+Private mID As String
+Private mSaved As Boolean
+Private mSavedID As String
+Private mHooks As Collection
+Private mLoading As Boolean
+Private mLastProject As String
+
+Private lblComment As MSForms.Label
+Private cboProject As MSForms.ComboBox
+Private cboPhase As MSForms.ComboBox
+Private btnPhase As MSForms.CommandButton
+Private txtName As MSForms.TextBox
+Private txtStart As MSForms.TextBox
+Private txtDue As MSForms.TextBox
+Private cboPct As MSForms.ComboBox
+Private cboStatus As MSForms.ComboBox
+Private cboPri As MSForms.ComboBox
+Private chkMile As MSForms.CheckBox
+Private txtNote As MSForms.TextBox
+Private btnSave As MSForms.CommandButton
+Private btnDelete As MSForms.CommandButton
+Private btnCancel As MSForms.CommandButton
+
+Public Property Get Saved() As Boolean
+    Saved = mSaved
+End Property
+
+Public Property Get SavedID() As String
+    SavedID = mSavedID
+End Property
+
+'--- 화면 구성 ----------------------------------------------
+Private Sub UserForm_Initialize()
+    Dim y As Single
+    Set mHooks = New Collection
+    Me.Caption = "Task 등록"
+    Me.Width = 340
+    Me.Height = 392
+    Me.Font.Name = "맑은 고딕"
+
+    y = 6
+    Set lblComment = Me.Controls.Add("Forms.Label.1", "lblComment")
+    With lblComment
+        .Left = 8: .Top = y: .Width = 316: .Height = 30
+        .BackColor = RGB(255, 242, 204): .WordWrap = True: .Visible = False
+    End With
+    y = y + 34
+
+    AddLbl "프로젝트", y
+    Set cboProject = AddCbo("cboProject", 78, y, 246, True)
+    cboProject.ColumnCount = 2
+    cboProject.ColumnWidths = "0 pt;240 pt"
+    cboProject.BoundColumn = 1
+    cboProject.TextColumn = 2
+    y = y + 24
+
+    AddLbl "단계", y
+    Set cboPhase = AddCbo("cboPhase", 78, y, 170, False)
+    cboPhase.ColumnCount = 2
+    cboPhase.ColumnWidths = "0 pt;170 pt"
+    cboPhase.BoundColumn = 1
+    cboPhase.TextColumn = 2
+    Set btnPhase = AddBtn("btnPhase", "단계 편집", 254, y, 70)
+    y = y + 24
+
+    AddLbl "업무명", y
+    Set txtName = AddTxt("txtName", 78, y, 246, 18)
+    y = y + 24
+
+    AddLbl "시작일", y
+    Set txtStart = AddTxt("txtStart", 78, y, 90, 18)
+    AddLblAt "종료일", 180, y
+    Set txtDue = AddTxt("txtDue", 234, y, 90, 18)
+    y = y + 24
+
+    AddLbl "진척률(%)", y
+    Set cboPct = AddCbo("cboPct", 78, y, 90, False)
+    cboPct.List = Array("0", "10", "25", "50", "75", "90", "100")
+    AddLblAt "상태", 180, y
+    Set cboStatus = AddCbo("cboStatus", 234, y, 90, False)
+    cboStatus.List = Array(ST_PLAN, ST_DOING, ST_DONE, ST_HOLD, ST_CANCEL)
+    y = y + 24
+
+    AddLbl "우선순위", y
+    Set cboPri = AddCbo("cboPri", 78, y, 90, False)
+    cboPri.List = Array("상", "중", "하")
+    Set chkMile = Me.Controls.Add("Forms.CheckBox.1", "chkMile")
+    With chkMile
+        .Left = 180: .Top = y: .Width = 150: .Height = 18
+        .Caption = SYM_MILE & " 보고·마감 일정"
+    End With
+    y = y + 26
+
+    AddLbl "메모", y
+    Set txtNote = AddTxt("txtNote", 78, y, 246, 54)
+    txtNote.MultiLine = True
+    txtNote.WordWrap = True
+    txtNote.EnterKeyBehavior = True
+    y = y + 60
+
+    With Me.Controls.Add("Forms.Label.1", "lblHint")
+        .Left = 78: .Top = y: .Width = 246: .Height = 24
+        .Caption = "날짜: 2026-10-07 또는 10/7 형식 / 지연 사유는 메모에 적으면 팀장 화면에 표시됩니다."
+        .ForeColor = RGB(128, 128, 128)
+        .Font.Size = 8
+    End With
+    y = y + 30
+
+    Set btnSave = AddBtn("btnSave", "저장", 78, y, 76)
+    Set btnDelete = AddBtn("btnDelete", "삭제", 162, y, 76)
+    Set btnCancel = AddBtn("btnCancel", "취소", 248, y, 76)
+    btnDelete.Visible = False
+    btnSave.Default = True
+    btnCancel.Cancel = True
+End Sub
+
+Private Sub AddLbl(ByVal cap As String, ByVal y As Single)
+    AddLblAt cap, 8, y
+End Sub
+
+Private Sub AddLblAt(ByVal cap As String, ByVal x As Single, ByVal y As Single)
+    With Me.Controls.Add("Forms.Label.1")
+        .Caption = cap: .Left = x: .Top = y + 3: .Width = 66: .Height = 14
+    End With
+End Sub
+
+Private Function AddTxt(ByVal nm As String, ByVal x As Single, ByVal y As Single, ByVal w As Single, ByVal h As Single) As MSForms.TextBox
+    Set AddTxt = Me.Controls.Add("Forms.TextBox.1", nm)
+    With AddTxt
+        .Left = x: .Top = y: .Width = w: .Height = h
+    End With
+End Function
+
+Private Function AddCbo(ByVal nm As String, ByVal x As Single, ByVal y As Single, ByVal w As Single, ByVal hook As Boolean) As MSForms.ComboBox
+    Set AddCbo = Me.Controls.Add("Forms.ComboBox.1", nm)
+    With AddCbo
+        .Left = x: .Top = y: .Width = w: .Height = 18
+        .Style = fmStyleDropDownList
+    End With
+    If hook Then HookCtl AddCbo, nm
+End Function
+
+Private Function AddBtn(ByVal nm As String, ByVal cap As String, ByVal x As Single, ByVal y As Single, ByVal w As Single) As MSForms.CommandButton
+    Set AddBtn = Me.Controls.Add("Forms.CommandButton.1", nm)
+    With AddBtn
+        .Caption = cap: .Left = x: .Top = y: .Width = w: .Height = 22
+    End With
+    HookCtl AddBtn, nm
+End Function
+
+Private Sub HookCtl(ByVal ctl As Object, ByVal nm As String)
+    Dim h As clsCtl
+    Set h = New clsCtl
+    Set h.Host = Me
+    h.CtlName = nm
+    Select Case TypeName(ctl)
+        Case "CommandButton": Set h.Btn = ctl
+        Case "ComboBox": Set h.Cbo = ctl
+        Case "ListBox": Set h.Lst = ctl
+    End Select
+    mHooks.Add h
+End Sub
+
+'--- 값 채우기 ----------------------------------------------
+Public Sub Init(ByVal id As String, Optional ByVal defDate As Date = 0, Optional ByVal defMile As Boolean = False)
+    Dim v As Variant
+    mLoading = True
+    mID = id
+    LoadProjects
+    If id <> "" Then
+        v = GetTaskArr(id)
+        If IsEmpty(v) Then
+            mID = ""
+        Else
+            Me.Caption = "Task 수정 - " & id
+            SetCombo cboProject, CStr(Nz(v(T_PID)))
+            If cboProject.ListIndex < 0 And CStr(Nz(v(T_PID))) <> "" Then   ' 종료된 프로젝트 등 목록에 없는 코드
+                cboProject.AddItem CStr(v(T_PID))
+                cboProject.List(cboProject.ListCount - 1, 1) = CStr(v(T_PID)) & "  " & CStr(Nz(v(T_PNAME)))
+                SetCombo cboProject, CStr(v(T_PID))
+            End If
+            txtName.Text = CStr(Nz(v(T_NAME)))
+            txtStart.Text = Format$(ToDate(v(T_START)), "yyyy-mm-dd")
+            txtDue.Text = Format$(ToDate(v(T_DUE)), "yyyy-mm-dd")
+            SetCombo cboPct, CStr(NumOr(v(T_PCT)))
+            If cboPct.ListIndex < 0 Then cboPct.AddItem CStr(NumOr(v(T_PCT))): SetCombo cboPct, CStr(NumOr(v(T_PCT)))
+            SetCombo cboStatus, CStr(Nz(v(T_STATUS), ST_PLAN))
+            SetCombo cboPri, CStr(Nz(v(T_PRI), "중"))
+            chkMile.Value = (UCase$(CStr(Nz(v(T_MILE)))) = "Y")
+            txtNote.Text = CStr(Nz(v(T_NOTE)))
+            If CStr(Nz(v(T_COMMENT))) <> "" Then
+                lblComment.Caption = " " & SYM_COMMENT & " 팀장 코멘트: " & v(T_COMMENT)
+                lblComment.Visible = True
+            End If
+            btnDelete.Visible = True
+            mLastProject = CStr(Nz(v(T_PID)))
+            LoadPhases mLastProject, CStr(Nz(v(T_PHASE)))
+        End If
+    End If
+    If mID = "" Then
+        If defDate = 0 Then defDate = Date
+        txtStart.Text = Format$(defDate, "yyyy-mm-dd")
+        txtDue.Text = Format$(defDate, "yyyy-mm-dd")
+        SetCombo cboPct, "0"
+        SetCombo cboStatus, ST_PLAN
+        SetCombo cboPri, "중"
+        chkMile.Value = defMile
+        If defMile Then Me.Caption = "보고·마감 일정 등록"
+        LoadPhases "", ""
+    End If
+    btnPhase.Visible = IsPM(mLastProject)
+    mLoading = False
+End Sub
+
+Private Sub LoadProjects()
+    Dim a As Variant, i As Long, n As Long, lst() As Variant, specials As Variant, k As Long
+    a = ReadTable(GetLO(TB_PROJ))
+    specials = Array(PJ_COMMON, PJ_LEAVE, PJ_TRIP, PJ_EDU)
+    ReDim lst(0 To RowCount(a) + 5, 0 To 1)
+    For i = 1 To RowCount(a)
+        If IsActiveProject(CStr(Nz(a(i, P_STATUS)))) And CStr(Nz(a(i, P_ID))) <> "" Then
+            lst(n, 0) = CStr(a(i, P_ID))
+            lst(n, 1) = CStr(a(i, P_ID)) & IIf(CStr(a(i, P_STATUS)) = PJ_PENDING, "* ", "  ") & CStr(Nz(a(i, P_NAME)))
+            n = n + 1
+        End If
+    Next i
+    For k = 0 To 3
+        lst(n, 0) = specials(k): lst(n, 1) = specials(k): n = n + 1
+    Next k
+    lst(n, 0) = "+": lst(n, 1) = "[+ 새 프로젝트 요청]": n = n + 1
+    cboProject.Clear
+    For i = 0 To n - 1
+        cboProject.AddItem lst(i, 0)
+        cboProject.List(i, 1) = lst(i, 1)
+    Next i
+End Sub
+
+Private Sub LoadPhases(ByVal pid As String, ByVal selId As String)
+    Dim ph As Variant, i As Long
+    cboPhase.Clear
+    cboPhase.AddItem "-"
+    cboPhase.List(0, 1) = "(단계 미지정)"
+    ph = GetPhases(pid)
+    For i = 1 To RowCount(ph)
+        cboPhase.AddItem CStr(ph(i, PH_ID))
+        cboPhase.List(cboPhase.ListCount - 1, 1) = ph(i, PH_ORDER) & ". " & ph(i, PH_NAME)
+    Next i
+    If selId = "" Then selId = "-"
+    SetCombo cboPhase, selId
+    If cboPhase.ListIndex < 0 Then cboPhase.ListIndex = 0
+    cboPhase.Enabled = (pid <> "" And Not IsSpecialProject(pid))
+End Sub
+
+Private Sub SetCombo(ByVal cbo As MSForms.ComboBox, ByVal key As String)
+    Dim i As Long
+    For i = 0 To cbo.ListCount - 1
+        If CStr(cbo.List(i, 0)) = key Then cbo.ListIndex = i: Exit Sub
+    Next i
+End Sub
+
+Private Function ComboKey(ByVal cbo As MSForms.ComboBox) As String
+    If cbo.ListIndex >= 0 Then ComboKey = CStr(cbo.List(cbo.ListIndex, 0))
+End Function
+
+'--- 이벤트 (clsCtl에서 호출) -------------------------------
+Public Sub OnCtlChange(ByVal nm As String)
+    Dim pid As String, f As frmRequest, code As String
+    If mLoading Then Exit Sub
+    If nm <> "cboProject" Then Exit Sub
+    pid = ComboKey(cboProject)
+    If pid = "+" Then
+        mLoading = True
+        Set f = New frmRequest
+        f.Show
+        code = f.NewCode
+        Unload f
+        LoadProjects
+        If code <> "" Then
+            SetCombo cboProject, code
+            pid = code
+        Else
+            SetCombo cboProject, mLastProject
+            pid = mLastProject
+        End If
+        mLoading = False
+    End If
+    mLastProject = pid
+    LoadPhases pid, ""
+    btnPhase.Visible = IsPM(pid)
+End Sub
+
+Public Sub OnCtlClick(ByVal nm As String)
+    Select Case nm
+        Case "btnSave": DoSave
+        Case "btnDelete": DoDelete
+        Case "btnCancel": Me.Hide
+        Case "btnPhase"
+            If OpenPhaseForm(ComboKey(cboProject)) Then LoadPhases ComboKey(cboProject), ComboKey(cboPhase)
+    End Select
+End Sub
+
+Private Sub DoSave()
+    Dim v As Variant, s As Date, e As Date, pid As String, ph As String
+    pid = ComboKey(cboProject)
+    If pid = "" Or pid = "+" Then Msg "프로젝트를 선택하세요.", vbExclamation: Exit Sub
+    If Trim$(txtName.Text) = "" Then Msg "업무명을 입력하세요.", vbExclamation: txtName.SetFocus: Exit Sub
+    s = ParseDate(txtStart.Text)
+    e = ParseDate(txtDue.Text)
+    If s = 0 Then Msg "시작일 형식이 올바르지 않습니다. (예: 2026-10-07)", vbExclamation: txtStart.SetFocus: Exit Sub
+    If e = 0 Then Msg "종료일 형식이 올바르지 않습니다. (예: 2026-10-14)", vbExclamation: txtDue.SetFocus: Exit Sub
+    If e < s Then Msg "종료일이 시작일보다 빠릅니다.", vbExclamation: txtDue.SetFocus: Exit Sub
+
+    If mID <> "" Then v = GetTaskArr(mID)
+    If IsEmpty(v) Then v = NewTaskArr()
+    ph = ComboKey(cboPhase)
+    If ph = "-" Then ph = ""
+    v(T_PID) = pid
+    v(T_PHASE) = IIf(ph = "", Empty, ph)
+    v(T_NAME) = Trim$(txtName.Text)
+    v(T_START) = s
+    v(T_DUE) = e
+    v(T_PCT) = CDbl(Val(ComboKey(cboPct)))
+    v(T_STATUS) = ComboKey(cboStatus)
+    v(T_PRI) = ComboKey(cboPri)
+    v(T_MILE) = IIf(chkMile.Value, "Y", Empty)
+    v(T_NOTE) = IIf(Trim$(txtNote.Text) = "", Empty, Trim$(txtNote.Text))
+    mSavedID = SaveTask(v)
+    mSaved = True
+    Me.Hide
+End Sub
+
+Private Sub DoDelete()
+    If mID = "" Then Exit Sub
+    If MsgBox("이 Task를 삭제할까요?" & vbLf & "(기록을 남기려면 삭제 대신 상태를 '취소'로 바꾸세요)", _
+              vbYesNo + vbExclamation, APP_TITLE) <> vbYes Then Exit Sub
+    DeleteTask mID
+    mSavedID = ""
+    mSaved = True
+    Me.Hide
+End Sub
+
+Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)
+    If CloseMode = vbFormControlMenu Then
+        Cancel = True
+        Me.Hide
+    End If
+End Sub
+
+Private Sub UserForm_Terminate()
+    Set mHooks = Nothing
+End Sub

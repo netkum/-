@@ -1,0 +1,82 @@
+﻿'==============================================================
+' frmRequest : 새 프로젝트 요청 (임시 코드 발급 → 바로 사용)
+'  [설치] 사용자 정의 폼 추가 → (이름) = frmRequest → 이 코드 붙여넣기
+'==============================================================
+Option Explicit
+
+Private mCode As String
+Private mHooks As Collection
+Private txtName As MSForms.TextBox
+Private txtStart As MSForms.TextBox
+Private txtEnd As MSForms.TextBox
+Private txtMemo As MSForms.TextBox
+
+Public Property Get NewCode() As String
+    NewCode = mCode
+End Property
+
+Private Sub UserForm_Initialize()
+    Dim y As Single
+    Set mHooks = New Collection
+    Me.Caption = "새 프로젝트 요청"
+    Me.Width = 330
+    Me.Height = 250
+
+    With Me.Controls.Add("Forms.Label.1")
+        .Left = 8: .Top = 6: .Width = 306: .Height = 30
+        .Caption = "임시 코드가 바로 발급되어 Task를 등록할 수 있습니다." & vbLf & _
+                   "팀장이 승인하면 정식 코드로 자동 변경됩니다."
+        .ForeColor = RGB(89, 89, 89)
+    End With
+    y = 42
+    AddLbl "프로젝트명", y: Set txtName = AddTxt(84, y, 230, 18): y = y + 24
+    AddLbl "예상 시작일", y: Set txtStart = AddTxt(84, y, 100, 18): y = y + 24
+    AddLbl "예상 종료일", y: Set txtEnd = AddTxt(84, y, 100, 18): y = y + 24
+    AddLbl "메모", y: Set txtMemo = AddTxt(84, y, 230, 40): y = y + 50
+    txtMemo.MultiLine = True
+    txtStart.Text = Format$(Date, "yyyy-mm-dd")
+    AddBtn "btnOK", "요청", 150, y
+    AddBtn "btnCancel", "취소", 234, y
+End Sub
+
+Private Sub AddLbl(ByVal cap As String, ByVal y As Single)
+    With Me.Controls.Add("Forms.Label.1")
+        .Caption = cap: .Left = 8: .Top = y + 3: .Width = 74: .Height = 14
+    End With
+End Sub
+
+Private Function AddTxt(ByVal x As Single, ByVal y As Single, ByVal w As Single, ByVal h As Single) As MSForms.TextBox
+    Set AddTxt = Me.Controls.Add("Forms.TextBox.1")
+    With AddTxt
+        .Left = x: .Top = y: .Width = w: .Height = h
+    End With
+End Function
+
+Private Sub AddBtn(ByVal nm As String, ByVal cap As String, ByVal x As Single, ByVal y As Single)
+    Dim b As MSForms.CommandButton, h As clsCtl
+    Set b = Me.Controls.Add("Forms.CommandButton.1", nm)
+    b.Caption = cap: b.Left = x: b.Top = y: b.Width = 80: b.Height = 22
+    Set h = New clsCtl
+    Set h.Host = Me: h.CtlName = nm: Set h.Btn = b
+    mHooks.Add h
+End Sub
+
+Public Sub OnCtlChange(ByVal nm As String)
+End Sub
+
+Public Sub OnCtlClick(ByVal nm As String)
+    Dim s As Date, e As Date
+    If nm = "btnCancel" Then Me.Hide: Exit Sub
+    If Trim$(txtName.Text) = "" Then Msg "프로젝트명을 입력하세요.", vbExclamation: Exit Sub
+    s = ParseDate(txtStart.Text)
+    e = ParseDate(txtEnd.Text)
+    If txtStart.Text <> "" And s = 0 Then Msg "예상 시작일 형식을 확인하세요.", vbExclamation: Exit Sub
+    If txtEnd.Text <> "" And e = 0 Then Msg "예상 종료일 형식을 확인하세요.", vbExclamation: Exit Sub
+    mCode = CreateRequest(Trim$(txtName.Text), s, e, Trim$(txtMemo.Text))
+    Msg "임시 코드 " & mCode & " 가 발급되었습니다." & vbLf & "팀장이 다음 동기화 때 확인합니다."
+    Me.Hide
+End Sub
+
+Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)
+    If CloseMode = vbFormControlMenu Then Cancel = True: Me.Hide
+End Sub
