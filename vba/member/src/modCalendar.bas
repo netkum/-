@@ -306,7 +306,7 @@ Private Sub DrawWeek(ByVal ws As Worksheet, ByVal mp As Worksheet, ByVal b As Lo
         If ovN(slot) > 0 Then
             With ws.Cells(r0 + OFF_DATE, COL_DAY1 + slot)
                 .Value = "'" & .Value & "  +" & ovN(slot) & "건"
-                .AddComment "표시 못한 업무" & ovTxt(slot)
+                .AddComment Left$("표시 못한 업무" & ovTxt(slot), 250)
                 .Comment.Shape.TextFrame.AutoSize = True
             End With
         End If
@@ -412,7 +412,7 @@ Private Sub DrawBar(ByVal ws As Worksheet, ByVal mp As Worksheet, ByVal r As Lon
           "  " & NumOr(t(i, T_PCT)) & "%  " & st
     If CStr(Nz(t(i, T_NOTE))) <> "" Then tip = tip & vbLf & Left$(CStr(t(i, T_NOTE)), 60)
     If CStr(Nz(t(i, T_COMMENT))) <> "" Then tip = tip & vbLf & SYM_COMMENT & "팀장: " & Left$(CStr(t(i, T_COMMENT)), 60)
-    ws.Cells(r, c1).AddComment tip
+    ws.Cells(r, c1).AddComment Left$(tip, 250)
     ws.Cells(r, c1).Comment.Shape.TextFrame.AutoSize = True
 End Sub
 

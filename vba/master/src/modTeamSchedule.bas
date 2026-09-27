@@ -104,7 +104,7 @@ Public Sub RenderTeamSchedule()
         If evTxt <> "" Then
             ws.Cells(6, c).Value = SYM_MILE
             ws.Cells(6, c).Font.Color = RGB(192, 0, 0)
-            ws.Cells(6, c).AddComment evTxt
+            ws.Cells(6, c).AddComment Left$(evTxt, 250)
             ws.Cells(6, c).Comment.Shape.TextFrame.AutoSize = True
         End If
     Next dd
@@ -151,7 +151,7 @@ Public Sub RenderTeamSchedule()
                 If pc.Exists(firstPid) Then ws.Cells(r, c).Interior.Color = LightColor(pc(firstPid), 0.7)
             End If
             If tip <> "" Then
-                ws.Cells(r, c).AddComment mem & " " & Format$(d, "m/d") & tip
+                ws.Cells(r, c).AddComment Left$(mem & " " & Format$(d, "m/d") & tip, 250)
                 ws.Cells(r, c).Comment.Shape.TextFrame.AutoSize = True
             End If
         Next dd

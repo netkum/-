@@ -303,6 +303,7 @@ Private Sub BuildCalendar()
     ws.Range("A" & CAL_TOP).Select
     ActiveWindow.FreezePanes = True
 
+    On Error Resume Next      ' 프린터가 없는 PC에서는 인쇄 설정이 실패할 수 있음
     With ws.PageSetup
         .PrintArea = "$A$1:$H$" & LastCalRow()
         .Orientation = xlLandscape
@@ -311,6 +312,7 @@ Private Sub BuildCalendar()
         .FitToPagesTall = 1
         .CenterHorizontally = True
     End With
+    On Error GoTo 0
 End Sub
 
 ' 둥근 사각형 버튼 → 다음 버튼의 x 위치 반환
