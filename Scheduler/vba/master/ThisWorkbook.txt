@@ -1,0 +1,28 @@
+﻿'==============================================================
+' ThisWorkbook 코드 (팀장 Master)
+'  [설치] VBA 편집기 왼쪽 "현재_통합_문서(ThisWorkbook)" 더블클릭 → 이 내용 붙여넣기
+'==============================================================
+Option Explicit
+
+Private Sub Workbook_Open()
+    On Error Resume Next
+    OnOpen
+End Sub
+
+Private Sub Workbook_BeforeSave(ByVal SaveAsUI As Boolean, Cancel As Boolean)
+    On Error Resume Next
+    OnBeforeSave
+End Sub
+
+Private Sub Workbook_SheetChange(ByVal Sh As Object, ByVal Target As Range)
+    OnSheetChange Sh, Target
+End Sub
+
+Private Sub Workbook_SheetBeforeDoubleClick(ByVal Sh As Object, ByVal Target As Range, Cancel As Boolean)
+    On Error GoTo EH
+    OnDoubleClick Sh, Target, Cancel
+    Exit Sub
+EH:
+    SpeedReset
+    MsgBox "오류: " & Err.Description, vbExclamation, "팀 업무관리 Master"
+End Sub

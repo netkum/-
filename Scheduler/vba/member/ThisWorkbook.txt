@@ -1,0 +1,43 @@
+﻿'==============================================================
+' ThisWorkbook 코드
+'  [설치] VBA 편집기 왼쪽 프로젝트 창 → "현재_통합_문서(ThisWorkbook)" 더블클릭
+'         → 이 내용 전부 붙여넣기
+'  모든 시트 이벤트를 여기서 받아 처리하므로 시트 모듈에는 코드가 필요 없습니다.
+'==============================================================
+Option Explicit
+
+Private Sub Workbook_Open()
+    On Error GoTo EH
+    OnOpen
+    Exit Sub
+EH:
+    SpeedReset
+    MsgBox "파일을 여는 중 오류가 발생했습니다: " & Err.Description, vbExclamation, "업무일정"
+End Sub
+
+Private Sub Workbook_BeforeSave(ByVal SaveAsUI As Boolean, Cancel As Boolean)
+    On Error Resume Next
+    OnBeforeSave
+End Sub
+
+Private Sub Workbook_SheetChange(ByVal Sh As Object, ByVal Target As Range)
+    OnSheetChange Sh, Target
+End Sub
+
+Private Sub Workbook_SheetSelectionChange(ByVal Sh As Object, ByVal Target As Range)
+    OnSelectionChange Sh, Target
+End Sub
+
+Private Sub Workbook_SheetBeforeDoubleClick(ByVal Sh As Object, ByVal Target As Range, Cancel As Boolean)
+    On Error GoTo EH
+    OnDoubleClick Sh, Target, Cancel
+    Exit Sub
+EH:
+    SpeedReset
+    MsgBox "오류: " & Err.Description, vbExclamation, "업무일정"
+End Sub
+
+Private Sub Workbook_SheetActivate(ByVal Sh As Object)
+    On Error Resume Next
+    If Sh.Name = "MyProject" Then RenderMyProject
+End Sub

@@ -5,9 +5,20 @@ Attribute VB_Name = "modSetup"
 '==============================================================
 Option Explicit
 
+Private mSilent As Boolean
+
+' 자동 생성 스크립트(build.ps1)용: 확인창 없이 실행
+Public Sub SetupTemplateSilent()
+    mSilent = True
+    SetupTemplate
+    mSilent = False
+End Sub
+
 Public Sub SetupTemplate()
-    If MsgBox("업무일정 템플릿 구조(시트·표·버튼)를 만듭니다." & vbLf & _
+    If Not mSilent Then
+        If MsgBox("업무일정 템플릿 구조(시트·표·버튼)를 만듭니다." & vbLf & _
               "같은 이름의 시트가 있으면 내용이 초기화됩니다. 계속할까요?", vbYesNo + vbQuestion, APP_TITLE) <> vbYes Then Exit Sub
+    End If
     On Error GoTo EH
     SpeedOn
     EnsureSheet SH_CAL
@@ -34,14 +45,16 @@ Public Sub SetupTemplate()
 
     RenderCalendar
     GetWS(SH_CAL).Activate
-    Msg "템플릿 구성이 끝났습니다." & vbLf & vbLf & _
-        "1) 파일을 '업무일정_Template.xlsm'(매크로 사용 통합 문서)으로 저장하세요." & vbLf & _
-        "2) 팀원은 이 파일을 복사해 '이름_업무일정.xlsm'으로 이름만 바꿔 사용합니다." & vbLf & _
-        "3) 공휴일은 Setting 시트의 tblHoliday에서 확인·추가하세요."
+    If Not mSilent Then
+        Msg "템플릿 구성이 끝났습니다." & vbLf & vbLf & _
+            "1) 파일을 '업무일정_Template.xlsm'(매크로 사용 통합 문서)으로 저장하세요." & vbLf & _
+            "2) 팀원은 이 파일을 복사해 '이름_업무일정.xlsm'으로 이름만 바꿔 사용합니다." & vbLf & _
+            "3) 공휴일은 Setting 시트의 tblHoliday에서 확인·추가하세요."
+    End If
     Exit Sub
 EH:
     SpeedReset
-    Msg "템플릿 구성 중 오류: " & Err.Description, vbCritical
+    If Not mSilent Then Msg "템플릿 구성 중 오류: " & Err.Description, vbCritical
 End Sub
 
 Private Function EnsureSheet(ByVal nm As String) As Worksheet

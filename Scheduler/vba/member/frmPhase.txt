@@ -1,0 +1,222 @@
+﻿'==============================================================
+' frmPhase : 프로젝트 단계 편집 (PM 전용)
+'  [설치] 사용자 정의 폼 추가 → (이름) = frmPhase → 이 코드 붙여넣기
+'  - 추가 / 위로 / 아래로 / 적용(이름·기간 변경) / 합치기 / 저장
+'  - 단계 삭제는 없음: Task가 있는 단계는 다른 단계로 "합치기"
+'==============================================================
+Option Explicit
+
+Private mPid As String
+Private mSaved As Boolean
+Private mHooks As Collection
+Private mRows() As Variant        ' 각 원소: Array(PhaseID, 단계명, 계획시작, 계획종료)
+Private mN As Long
+Private mMerges As Collection
+
+Private lstPh As MSForms.ListBox
+Private txtPName As MSForms.TextBox
+Private txtPStart As MSForms.TextBox
+Private txtPEnd As MSForms.TextBox
+Private cboMerge As MSForms.ComboBox
+
+Public Property Get Saved() As Boolean
+    Saved = mSaved
+End Property
+
+Private Sub UserForm_Initialize()
+    Dim y As Single
+    Set mHooks = New Collection
+    Set mMerges = New Collection
+    Me.Width = 440
+    Me.Height = 360
+
+    Set lstPh = Me.Controls.Add("Forms.ListBox.1", "lstPh")
+    With lstPh
+        .Left = 8: .Top = 8: .Width = 414: .Height = 150
+        .ColumnCount = 6
+        .ColumnWidths = "30 pt;170 pt;60 pt;60 pt;50 pt;0 pt"
+    End With
+    HookCtl lstPh, "lstPh"
+
+    y = 166
+    AddLbl "단계명", 8, y: Set txtPName = AddTxt(60, y, 190)
+    AddLbl "계획", 258, y: Set txtPStart = AddTxt(284, y, 66): Set txtPEnd = AddTxt(356, y, 66)
+    y = y + 26
+    AddBtn "btnAdd", "추가", 8, y, 60
+    AddBtn "btnApply", "선택 단계 수정", 72, y, 90
+    AddBtn "btnUp", "위로", 166, y, 50
+    AddBtn "btnDown", "아래로", 220, y, 50
+    y = y + 34
+    AddLbl "합치기 대상", 8, y
+    Set cboMerge = Me.Controls.Add("Forms.ComboBox.1", "cboMerge")
+    With cboMerge
+        .Left = 76: .Top = y: .Width = 200: .Height = 18
+        .Style = fmStyleDropDownList
+        .ColumnCount = 2
+        .ColumnWidths = "0 pt;200 pt"
+    End With
+    AddBtn "btnMerge", "선택 단계를 합치기", 282, y - 2, 140
+    y = y + 26
+    With Me.Controls.Add("Forms.Label.1")
+        .Left = 8: .Top = y: .Width = 414: .Height = 28
+        .Caption = "※ 합치면 이 단계의 Task가 대상 단계로 옮겨집니다. (다른 참여자의 Task는 팀장 동기화 후 자동 반영)" & vbLf & _
+                   "※ 계획 기간은 비워도 됩니다. (비우면 해당 단계 Task 기간으로 자동 계산)"
+        .ForeColor = RGB(128, 128, 128)
+        .Font.Size = 8
+    End With
+    y = y + 34
+    AddBtn "btnSave", "저장", 256, y, 80
+    AddBtn "btnClose", "닫기", 342, y, 80
+End Sub
+
+Private Sub AddLbl(ByVal cap As String, ByVal x As Single, ByVal y As Single)
+    With Me.Controls.Add("Forms.Label.1")
+        .Caption = cap: .Left = x: .Top = y + 3: .Width = 70: .Height = 14
+    End With
+End Sub
+
+Private Function AddTxt(ByVal x As Single, ByVal y As Single, ByVal w As Single) As MSForms.TextBox
+    Set AddTxt = Me.Controls.Add("Forms.TextBox.1")
+    With AddTxt
+        .Left = x: .Top = y: .Width = w: .Height = 18
+    End With
+End Function
+
+Private Sub AddBtn(ByVal nm As String, ByVal cap As String, ByVal x As Single, ByVal y As Single, ByVal w As Single)
+    Dim b As MSForms.CommandButton
+    Set b = Me.Controls.Add("Forms.CommandButton.1", nm)
+    b.Caption = cap: b.Left = x: b.Top = y: b.Width = w: b.Height = 22
+    HookCtl b, nm
+End Sub
+
+Private Sub HookCtl(ByVal ctl As Object, ByVal nm As String)
+    Dim h As clsCtl
+    Set h = New clsCtl
+    Set h.Host = Me
+    h.CtlName = nm
+    Select Case TypeName(ctl)
+        Case "CommandButton": Set h.Btn = ctl
+        Case "ListBox": Set h.Lst = ctl
+        Case "ComboBox": Set h.Cbo = ctl
+    End Select
+    mHooks.Add h
+End Sub
+
+'--- 데이터 -------------------------------------------------
+Public Sub Init(ByVal pid As String)
+    Dim ph As Variant, i As Long
+    mPid = pid
+    Me.Caption = "단계 편집 - " & pid & " " & ProjectNameOf(pid) & " (PM)"
+    ph = GetPhases(pid)
+    mN = RowCount(ph)
+    If mN > 0 Then
+        ReDim mRows(1 To mN)
+        For i = 1 To mN
+            mRows(i) = Array(CStr(ph(i, PH_ID)), CStr(ph(i, PH_NAME)), ph(i, PH_START), ph(i, PH_END))
+        Next i
+    End If
+    RefreshList
+End Sub
+
+Private Sub RefreshList(Optional ByVal sel As Long = -1)
+    Dim i As Long, r As Variant
+    lstPh.Clear
+    cboMerge.Clear
+    For i = 1 To mN
+        r = mRows(i)
+        lstPh.AddItem CStr(i)
+        lstPh.List(i - 1, 1) = r(1)
+        lstPh.List(i - 1, 2) = IIf(IsDateVal(r(2)), Format$(ToDate(r(2)), "yyyy-mm-dd"), "")
+        lstPh.List(i - 1, 3) = IIf(IsDateVal(r(3)), Format$(ToDate(r(3)), "yyyy-mm-dd"), "")
+        lstPh.List(i - 1, 4) = "내 Task " & CountMyTasksByPhase(CStr(r(0)))
+        lstPh.List(i - 1, 5) = r(0)
+        cboMerge.AddItem r(0)
+        cboMerge.List(i - 1, 1) = i & ". " & r(1)
+    Next i
+    If sel >= 0 And sel < mN Then lstPh.ListIndex = sel
+End Sub
+
+Private Function ExistingIds() As Variant
+    Dim a() As Variant, i As Long
+    If mN = 0 Then ExistingIds = Empty: Exit Function
+    ReDim a(1 To mN)
+    For i = 1 To mN: a(i) = mRows(i)(0): Next i
+    ExistingIds = a
+End Function
+
+Private Function ReadDateBox(ByVal tb As MSForms.TextBox, ByRef ok As Boolean) As Variant
+    ok = True
+    If Trim$(tb.Text) = "" Then ReadDateBox = Empty: Exit Function
+    If ParseDate(tb.Text) = 0 Then ok = False: Exit Function
+    ReadDateBox = ParseDate(tb.Text)
+End Function
+
+'--- 이벤트 -------------------------------------------------
+Public Sub OnCtlChange(ByVal nm As String)
+    Dim r As Variant
+    If nm <> "lstPh" Or lstPh.ListIndex < 0 Then Exit Sub
+    r = mRows(lstPh.ListIndex + 1)
+    txtPName.Text = r(1)
+    txtPStart.Text = IIf(IsDateVal(r(2)), Format$(ToDate(r(2)), "yyyy-mm-dd"), "")
+    txtPEnd.Text = IIf(IsDateVal(r(3)), Format$(ToDate(r(3)), "yyyy-mm-dd"), "")
+End Sub
+
+Public Sub OnCtlClick(ByVal nm As String)
+    Dim i As Long, s As Variant, e As Variant, ok1 As Boolean, ok2 As Boolean, tmp As Variant, toId As String
+
+    Select Case nm
+        Case "btnAdd", "btnApply"
+            If Trim$(txtPName.Text) = "" Then Msg "단계명을 입력하세요.", vbExclamation: Exit Sub
+            s = ReadDateBox(txtPStart, ok1): e = ReadDateBox(txtPEnd, ok2)
+            If Not (ok1 And ok2) Then Msg "계획 날짜 형식을 확인하세요. (예: 2026-10-01)", vbExclamation: Exit Sub
+            If nm = "btnAdd" Then
+                mN = mN + 1
+                If mN = 1 Then ReDim mRows(1 To 1) Else ReDim Preserve mRows(1 To mN)
+                mRows(mN) = Array(NewPhaseID(mPid, ExistingIds()), Trim$(txtPName.Text), s, e)
+                RefreshList mN - 1
+            Else
+                i = lstPh.ListIndex + 1
+                If i < 1 Then Msg "수정할 단계를 목록에서 선택하세요.", vbExclamation: Exit Sub
+                mRows(i) = Array(mRows(i)(0), Trim$(txtPName.Text), s, e)
+                RefreshList i - 1
+            End If
+
+        Case "btnUp", "btnDown"
+            i = lstPh.ListIndex + 1
+            If i < 1 Then Exit Sub
+            If nm = "btnUp" And i > 1 Then
+                tmp = mRows(i - 1): mRows(i - 1) = mRows(i): mRows(i) = tmp
+                RefreshList i - 2
+            ElseIf nm = "btnDown" And i < mN Then
+                tmp = mRows(i + 1): mRows(i + 1) = mRows(i): mRows(i) = tmp
+                RefreshList i
+            End If
+
+        Case "btnMerge"
+            i = lstPh.ListIndex + 1
+            If i < 1 Then Msg "합칠(없앨) 단계를 목록에서 선택하세요.", vbExclamation: Exit Sub
+            If cboMerge.ListIndex < 0 Then Msg "합치기 대상 단계를 선택하세요.", vbExclamation: Exit Sub
+            toId = CStr(cboMerge.List(cboMerge.ListIndex, 0))
+            If toId = mRows(i)(0) Then Msg "같은 단계로는 합칠 수 없습니다.", vbExclamation: Exit Sub
+            If MsgBox("'" & mRows(i)(1) & "' 단계를 '" & cboMerge.List(cboMerge.ListIndex, 1) & "'(으)로 합칠까요?", _
+                      vbYesNo + vbQuestion, APP_TITLE) <> vbYes Then Exit Sub
+            mMerges.Add Array(mRows(i)(0), toId)
+            For i = i To mN - 1: mRows(i) = mRows(i + 1): Next i
+            mN = mN - 1
+            If mN > 0 Then ReDim Preserve mRows(1 To mN)
+            RefreshList
+
+        Case "btnSave"
+            SavePhases mPid, mRows, mN, mMerges
+            mSaved = True
+            Msg "단계를 저장했습니다." & vbLf & "팀장이 동기화하면 다른 참여자에게도 반영됩니다."
+            Me.Hide
+
+        Case "btnClose"
+            Me.Hide
+    End Select
+End Sub
+
+Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)
+    If CloseMode = vbFormControlMenu Then Cancel = True: Me.Hide
+End Sub

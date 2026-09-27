@@ -4,9 +4,20 @@ Attribute VB_Name = "modSetup"
 '==============================================================
 Option Explicit
 
+Private mSilent As Boolean
+
+' 자동 생성 스크립트(build.ps1)용: 확인창 없이 실행
+Public Sub SetupMasterSilent()
+    mSilent = True
+    SetupMaster
+    mSilent = False
+End Sub
+
 Public Sub SetupMaster()
-    If MsgBox("팀장 Master 구조(시트·표·버튼)를 만듭니다." & vbLf & _
+    If Not mSilent Then
+        If MsgBox("팀장 Master 구조(시트·표·버튼)를 만듭니다." & vbLf & _
               "같은 이름의 시트가 있으면 내용이 초기화됩니다. 계속할까요?", vbYesNo + vbQuestion, APP_TITLE) <> vbYes Then Exit Sub
+    End If
     On Error GoTo EH
     SpeedOn
     EnsureSheet SH_DASH
@@ -30,15 +41,17 @@ Public Sub SetupMaster()
 
     RefreshViews
     GetWS(SH_DASH).Activate
-    Msg "Master 구성이 끝났습니다." & vbLf & vbLf & _
-        "1) '연구팀_Master.xlsm'(매크로 사용 통합 문서)으로 공유폴더의 Master 폴더에 저장하세요." & vbLf & _
-        "2) Setting 시트에서 MemberFolder(팀원 파일 폴더)를 확인하세요. 비우면 '상위 폴더\Member'." & vbLf & _
-        "3) ProjectMaster 시트에 프로젝트를 등록하고 [ProjectList 배포]를 누르세요." & vbLf & _
-        "4) 팀 공통 보고일정·공휴일은 Setting 시트에서 관리합니다."
+    If Not mSilent Then
+        Msg "Master 구성이 끝났습니다." & vbLf & vbLf & _
+            "1) '연구팀_Master.xlsm'(매크로 사용 통합 문서)으로 공유폴더의 Master 폴더에 저장하세요." & vbLf & _
+            "2) Setting 시트에서 MemberFolder(팀원 파일 폴더)를 확인하세요. 비우면 '상위 폴더\Member'." & vbLf & _
+            "3) ProjectMaster 시트에 프로젝트를 등록하고 [ProjectList 배포]를 누르세요." & vbLf & _
+            "4) 팀 공통 보고일정·공휴일은 Setting 시트에서 관리합니다."
+    End If
     Exit Sub
 EH:
     SpeedReset
-    Msg "구성 중 오류: " & Err.Description, vbCritical
+    If Not mSilent Then Msg "구성 중 오류: " & Err.Description, vbCritical
 End Sub
 
 Private Function EnsureSheet(ByVal nm As String) As Worksheet

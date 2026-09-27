@@ -8,3 +8,4 @@
 ## 코드
 - [팀원용 업무일정 템플릿 VBA](vba/member/README.md) – 설치 방법, 파일 구성, 팀장 Master와의 데이터 규격
 - [팀장 Master VBA](vba/master/README.md) – 동기화, Dashboard, ProjectView, TeamSchedule, 요청 처리·배포
+- [Scheduler 배포 폴더](Scheduler/README.txt) – 원하는 위치(예: `F:\claude\Scheduler`)에 그대로 복사 후 `build.bat` 실행 → 엑셀 파일 자동 생성
