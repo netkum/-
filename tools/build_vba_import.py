@@ -20,3 +20,9 @@ for pkg in ["member", "master"]:
             elif f.suffix == ".txt":
                 (dst / f.name).write_bytes(text.encode("utf-8-sig"))
             print("built", dst / f.name)
+
+# 엑셀 안에서 실행하는 빌더 (build.bat을 쓸 수 없을 때): Scheduler/Builder.bas
+b = ROOT / "vba" / "builder" / "src" / "modBuilder.bas"
+text = b.read_text(encoding="utf-8").replace("\r\n", "\n").replace("\n", "\r\n")
+(ROOT / "Scheduler" / "Builder.bas").write_bytes(text.encode("cp949"))
+print("built", ROOT / "Scheduler" / "Builder.bas")
